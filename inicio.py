@@ -22,13 +22,14 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. LOGIN
+# 2. LOGIN (CORRIGIDO)
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
     st.title("🔐 ÁREA DO ASSINANTE B3 VIP")
-    senha = st.text_input("Chave de Acesso:", type, "password")
+    # Removido o erro de sintaxe da linha abaixo
+    senha = st.text_input("Chave de Acesso:", type="password")
     if st.button("Liberar"):
         if senha == "mestre10":
             st.session_state.auth = True
@@ -43,6 +44,8 @@ if st.button("Consultar"):
     try:
         nome_ativo = ticker.upper().strip()
         simbolo = f"{nome_ativo}.SA" if not nome_ativo.endswith(".SA") else nome_ativo
+        
+        # Download dos dados
         df = yf.download(simbolo, period="120d", interval="1d", progress=False)
         
         if df.empty:
@@ -83,25 +86,26 @@ if st.button("Consultar"):
             st.write("---")
 
             if sinal_hoje:
-                # Encontrar primeiro dia do sinal atual
-                indices_entrada = df[df['Sinal']].index
-                idx_entrada = indices_entrada[-1]
+                # Localizar data e preço da primeira entrada deste ciclo
+                idx_entrada = len(df) - 1
                 for i in range(len(df)-1, 0, -1):
                     if df['Sinal'].iloc[i]:
-                        idx_entrada = df.index[i]
+                        idx_entrada = i
                     else:
                         break
                 
-                pr_ent = float(df.loc[idx_entrada, 'Close'])
-                st.success(f"🚀 COMPRA LIBERADA!")
-                st.write(f"**Data da Entrada:** {idx_entrada.strftime('%d/%m/%Y')}")
-                st.write(f"**Preço na Entrada:** R$ {pr_ent:.2f}")
+                dt_entrada = df.index[idx_entrada].strftime('%d/%m/%Y')
+                pr_entrada = float(df['Close'].iloc[idx_entrada])
                 
-                var = ((atual / pr_ent) - 1) * 100
-                if var > 0.5:
-                    st.warning(f"⚠️ Já subiu {var:.2f}% desde a entrada.")
-                elif var < -0.5:
-                    st.info(f"📉 Está {abs(var):.2f}% abaixo da entrada.")
+                st.success(f"🚀 COMPRA LIBERADA!")
+                st.write(f"**Data da Entrada:** {dt_entrada}")
+                st.write(f"**Preço na Entrada:** R$ {pr_entrada:.2f}")
+                
+                variacao = ((atual / pr_entrada) - 1) * 100
+                if variacao > 0.5:
+                    st.warning(f"⚠️ Já subiu {variacao:.2f}% desde a entrada.")
+                elif variacao < -0.5:
+                    st.info(f"📉 Está {abs(variacao):.2f}% abaixo da entrada.")
             else:
                 st.error("🚫 COMPRA NÃO LIBERADA")
 
@@ -113,12 +117,14 @@ if st.button("Consultar"):
             
             st.write("---")
             
-            # --- GRÁFICO (RESTAURADO) ---
+            # --- GRÁFICO ---
             st.subheader("📊 Gráfico + Média")
-            grafico_final = df[['Close', 'EMA69']].rename(columns={'Close': 'Preço Ativo', 'EMA69': 'Média EMA69'})
-            st.line_chart(grafico_final)
+            # Preparando os dados para o gráfico com legendas claras
+            df_plot = df[['Close', 'EMA69']].copy()
+            df_plot.columns = ['Preço de Fechamento', 'Média EMA 69']
+            st.line_chart(df_plot)
             
     except Exception as e:
-        st.error("Erro ao carregar dados.")
+        st.error(f"Erro ao processar ativo. Verifique o ticker.")
 
 st.info("Para sair, feche o navegador.")
