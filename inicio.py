@@ -32,10 +32,9 @@ ticker = st.text_input("Ativo (Ex: CURY3, BOVA11, AAPL34):", "CURY3")
 if st.button("Consultar"):
     try:
         nome_ativo = ticker.upper().strip()
-        if not nome_ativo.endswith(".SA"):
-            nome_ativo = f"{nome_ativo}.SA"
+        simbolo_busca = f"{nome_ativo}.SA" if not nome_ativo.endswith(".SA") else nome_ativo
             
-        df = yf.download(nome_ativo, period="150d", interval="1d")
+        df = yf.download(simbolo_busca, period="150d", interval="1d")
         
         if df.empty:
             st.error("Ativo não encontrado.")
@@ -43,40 +42,32 @@ if st.button("Consultar"):
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             
-            # --- LÓGICA DE IDENTIFICAÇÃO DO TIPO DE ATIVO ---
-            # Ações: Geralmente 4 letras e 1 ou 2 números (PETR4, CURY3)
-            # BDRs: Terminam em 34 ou 35 (AAPL34)
-            # ETFs: Códigos conhecidos (BOVA11, IVVB11, SMAL11)
-            
-            simbolo = ticker.upper().strip()
-            if any(etf in simbolo for etf in ["BOVA11", "IVVB11", "SMAL11", "DIVO11", "HAS11"]):
+            # --- LÓGICA DE IDENTIFICAÇÃO DO TIPO DE ATIVO (SEU MANUAL) ---
+            if any(etf in nome_ativo for etf in ["BOVA11", "IVVB11", "SMAL11", "DIVO11", "HAS11"]):
                 tipo = "ETF"
-                perc_loss = 3.0
-                perc_gain = 5.0 # Média do seu manual (4% a 5%)
-            elif simbolo.endswith("34") or simbolo.endswith("35"):
+                perc_loss, perc_gain = 3.0, 5.0
+            elif nome_ativo.endswith("34") or nome_ativo.endswith("35"):
                 tipo = "BDR"
-                perc_loss = 4.0
-                perc_gain = 6.0
+                perc_loss, perc_gain = 4.0, 6.0
             else:
                 tipo = "Ação"
-                perc_loss = 5.0
-                perc_gain = 8.0 # Conforme seu manual (7% a 8%)
+                perc_loss, perc_gain = 5.0, 8.0
 
             # --- CÁLCULO DOS INDICADORES ---
-            df['EMA69'] = ta.ema(df['Close'], length=69)
+            df['EMA 69'] = ta.ema(df['Close'], length=69)
             stoch = ta.stoch(df['High'], df['Low'], df['Close'], k=14, d=3)
             df = pd.concat([df, stoch], axis=1)
             dmi = ta.adx(df['High'], df['Low'], df['Close'], length=14)
             df = pd.concat([df, dmi], axis=1)
             
             preco_atual = float(df['Close'].iloc[-1])
-            v_ema69 = float(df['EMA69'].iloc[-1])
+            v_ema69 = float(df['EMA 69'].iloc[-1])
             v_stoch_k = float(df['STOCHk_14_3_3'].iloc[-1])
             v_di_plus = float(df['DMP_14'].iloc[-1])
             v_di_minus = float(df['DMN_14'].iloc[-1])
             maxima_anterior = float(df['High'].iloc[-2])
             
-            st.metric(f"Preço Atual ({tipo})", f"R$ {preco_atual:.2f}")
+            st.metric(f"Preço Atual ({nome_ativo})", f"R$ {preco_atual:.2f}")
             st.write("---")
 
             # --- CHECKLIST TÉCNICO ---
@@ -100,7 +91,7 @@ if st.button("Consultar"):
 
             st.write("---")
             
-            # --- STOPS CONFORME MANUAL ---
+            # --- STOPS ---
             stop_loss = preco_atual * (1 - (perc_loss/100))
             stop_gain = preco_atual * (1 + (perc_gain/100))
             risco_retorno = perc_gain / perc_loss
@@ -108,13 +99,20 @@ if st.button("Consultar"):
             st.subheader("🎯 Planejamento da Operação")
             st.write(f"**🛑 Stop Loss ({perc_loss}%):** R$ {stop_loss:.2f}")
             st.write(f"**💰 Alvo Gain ({perc_gain}%):** R$ {stop_gain:.2f}")
-            st.write(f"**📊 Risco/Retorno:** {risco_retorno:.1f} {'✅ (Mínimo 1.5)' if risco_retorno >= 1.5 else '⚠️'}")
+            st.write(f"**📊 Risco/Retorno:** {risco_retorno:.1f} {'✅' if risco_retorno >= 1.5 else '⚠️'}")
             
             st.write("---")
-            st.subheader("📊 Gráfico Histórico")
-            st.line_chart(df['Close'])
+            
+            # --- GRÁFICO COM LEGENDA ---
+            st.subheader(f"📊 Gráfico: {nome_ativo} + EMA 69")
+            
+            # Criamos um dataframe apenas com o que queremos no gráfico para a legenda aparecer
+            df_grafico = df[['Close', 'EMA 69']].copy()
+            df_grafico.columns = [nome_ativo, 'EMA 69'] # Renomeia colunas para a legenda
+            
+            st.line_chart(df_grafico)
             
     except Exception as e:
-        st.error(f"Erro ao processar setup: {e}")
+        st.error(f"Erro ao processar: {e}")
 
 st.info("Para sair, basta fechar o navegador.")
