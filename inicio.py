@@ -41,13 +41,19 @@ if st.button("Consultar Agora"):
             nome_ativo = f"{nome_ativo}.SA"
             
         with st.spinner('Buscando dados na Bolsa...'):
+            # Busca os dados
             df = yf.download(nome_ativo, period="1mo")
             
         if df.empty:
             st.warning(f"Não encontramos dados para '{nome_ativo}'. Verifique o código digitado.")
         else:
-            preco_atual = df['Close'].iloc[-1]
-            st.metric(label=f"Preço Atual de {nome_ativo}", value=f"R$ {preco_atual:.2f}")
+            # Correção do erro técnico: Extraímos o valor real do número antes de formatar
+            preco_fechamento = df['Close'].iloc[-1]
+            
+            # Converte para número real (float) para evitar erro de formato da Series
+            valor_final = float(preco_fechamento)
+            
+            st.metric(label=f"Preço Atual de {nome_ativo}", value=f"R$ {valor_final:.2f}")
             
             st.subheader("Variação no Último Mês")
             st.line_chart(df['Close'])
