@@ -1,26 +1,60 @@
 import streamlit as st
 import yfinance as yf
 
+# 1. Configuração da Página e Remoção de Menus/Barras
 st.set_page_config(page_title="B3 VIP", layout="centered")
 
+st.markdown("""
+    <style>
+    /* Esconde o menu superior, o rodapé e o botão de Deploy do Streamlit */
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    .stDeployButton {display:none;}
+    </style>
+    """, unsafe_allow_html=True)
+
+# 2. Sistema de Login
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
-    st.title("🔐 Login B3 VIP")
-    senha = st.text_input("Senha:", type="password")
-    if st.button("Entrar"):
+    st.title("🔐 Acesso Restrito - B3 VIP")
+    senha = st.text_input("Digite sua chave de acesso:", type="password")
+    if st.button("Liberar Sistema"):
         if senha == "mestre10":
             st.session_state.auth = True
             st.rerun()
+        else:
+            st.error("Senha incorreta.")
     st.stop()
 
-st.title("📈 Monitor B3")
-ticker = st.text_input("Ativo (Ex: PETR4):", "PETR4")
-if st.button("Consultar"):
+# 3. Conteúdo Principal (Só aparece após o login)
+st.title("📈 Monitor de Ativos B3")
+ticker = st.text_input("Digite o código da ação (ex: PETR4, VALE3):", "PETR4")
+
+if st.button("Consultar Agora"):
     try:
-        df = yf.download(f"{ticker}.SA", period="1mo")
-        st.metric("Preço Atual", f"R$ {df['Close'].iloc[-1]:.2f}")
-        st.line_chart(df['Close'])
-    except:
-        st.error("Erro ao buscar dados.")
+        # Garante que o código tenha o .SA no final para o Yahoo Finance
+        nome_ativo = ticker.upper().strip()
+        if not nome_ativo.endswith(".SA"):
+            nome_ativo = f"{nome_ativo}.SA"
+            
+        with st.spinner('Buscando dados na Bolsa...'):
+            df = yf.download(nome_ativo, period="1mo")
+            
+        if df.empty:
+            st.warning(f"Não encontramos dados para '{nome_ativo}'. Verifique o código digitado.")
+        else:
+            preco_atual = df['Close'].iloc[-1]
+            st.metric(label=f"Preço Atual de {nome_ativo}", value=f"R$ {preco_atual:.2f}")
+            
+            st.subheader("Variação no Último Mês")
+            st.line_chart(df['Close'])
+            
+            st.success("Dados atualizados com sucesso!")
+            
+    except Exception as e:
+        st.error(f"Ocorreu um erro técnico: {e}")
+
+st.info("Para sair, basta fechar o navegador.")
