@@ -8,6 +8,7 @@ st.set_page_config(page_title="B3 VIP - SETUP", layout="centered")
 
 st.markdown("""
     <style>
+    /* Bloqueio de menus e ícones do sistema para aparência profissional */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden !important;}
     footer {visibility: hidden;}
@@ -18,12 +19,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Sistema de Login
+# 2. Sistema de Login - AJUSTADO PARA MAIÚSCULAS
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
-    st.title("🔐 Área do Assinante B3")
+    st.title("🔐 ÁREA DO ASSINANTE B3 VIP")
     senha = st.text_input("Chave de Acesso:", type="password")
     if st.button("Liberar"):
         if senha == "mestre10":
@@ -32,7 +33,7 @@ if not st.session_state.auth:
     st.stop()
 
 # 3. App de Análise
-st.title("📈 Análise de Setup B3")
+st.title("📈 ANÁLISE DE SETUP B3 VIP")
 ticker = st.text_input("Ativo (Ex: CURY3, BOVA11):", "PETR4")
 
 if st.button("Consultar"):
@@ -63,28 +64,19 @@ if st.button("Consultar"):
             df = pd.concat([df, stoch, dmi], axis=1)
             
             # --- LÓGICA PARA ENCONTRAR O DIA DA ENTRADA ---
-            # Definimos as condições para todo o histórico
             cond_1 = df['Close'] > df['EMA69']
             cond_2 = df['DMP_14'] > df['DMN_14']
             cond_3 = df['STOCHk_14_3_3'] < 80
-            # Condição 4: Preço > Máxima do dia anterior (df['High'].shift(1))
             cond_4 = df['Close'] > df['High'].shift(1)
             
-            # O setup é verdadeiro quando as 4 condições batem
             df['Sinal'] = cond_1 & cond_2 & cond_3 & cond_4
-            
-            # Identificamos o sinal de hoje
             sinal_hoje = df['Sinal'].iloc[-1]
             
-            # Se hoje está liberado, vamos descobrir quando começou
             data_entrada_str = "---"
             if sinal_hoje:
-                # Pegamos apenas os sinais verdadeiros e pegamos o último bloco contínuo
+                # Busca retroativa para achar o início do sinal atual
                 df_sinais = df[df['Sinal'] == True]
-                # A data da entrada é o início desse movimento de alta atual
-                # Para simplificar: pegamos a data mais recente onde o sinal mudou de Falso para Verdadeiro
                 data_entrada = df_sinais.index[-1]
-                # Verificamos se houve sinal nos dias imediatamente anteriores para achar a "origem"
                 for i in range(len(df)-1, 0, -1):
                     if df['Sinal'].iloc[i]:
                         data_entrada = df.index[i]
@@ -118,18 +110,4 @@ if st.button("Consultar"):
             st.subheader("🎯 Planejamento")
             st.write(f"**🛑 Stop Loss ({p_loss}%):** R$ {loss:.2f}")
             st.write(f"**💰 Alvo Gain ({p_gain}%):** R$ {gain:.2f}")
-            st.write(f"**📊 Risco/Retorno:** {rr:.1f} {'✅' if rr >= 1.5 else '⚠️'}")
-            
-            st.write("---")
-            
-            st.subheader("📊 Gráfico Histórico + Média")
-            grafico_data = pd.DataFrame({
-                f"Preço {nome_ativo}": df['Close'],
-                "Média": df['EMA69']
-            })
-            st.line_chart(grafico_data)
-            
-    except Exception as e:
-        st.error(f"Erro ao carregar dados.")
-
-st.info("Para sair, feche o navegador.")
+            st.write(f"**📊 Risco/Retorno:** {rr:.1f
