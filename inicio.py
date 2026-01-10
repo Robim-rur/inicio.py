@@ -3,24 +3,16 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 
-# 1. CONFIGURAÇÃO DA PÁGINA E CSS REFORÇADO
-st.set_page_config(page_title="B3 VIP - SETUP", layout="centered")
+# 1. CONFIGURAÇÃO DA PÁGINA (SIMPLIFICADA PARA EVITAR TRAVAMENTOS)
+st.set_page_config(page_title="B3 VIP", layout="centered")
 
+# CSS MÍNIMO: Apenas o essencial para não bugar o processamento
 st.markdown("""
     <style>
-    /* Esconder menus e cabeçalhos */
-    #MainMenu {visibility: hidden !important;}
-    header {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
     .stAppDeployButton {display: none !important;}
-    
-    /* Remover interatividade residual e ajustar tela */
-    .block-container {padding-top: 0rem !important;}
-    
-    /* Bloqueio de toque no topo para evitar cliques acidentais nos ícones ocultos */
-    .stApp > header {
-        pointer-events: none !important;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -37,15 +29,17 @@ if not st.session_state.auth:
             st.rerun()
     st.stop()
 
-# 3. APP
+# 3. APP PRINCIPAL
 st.title("📈 ANÁLISE DE SETUP B3 VIP")
-ticker = st.text_input("Ativo (Ex: CURY3, BOVA11):", "PETR4")
+ticker = st.text_input("Ativo (Ex: PETR4, VALE3):", "PETR4")
 
 if st.button("Consultar"):
     try:
         nome_ativo = ticker.upper().strip()
         simbolo = f"{nome_ativo}.SA" if not nome_ativo.endswith(".SA") else nome_ativo
-        df = yf.download(simbolo, period="150d", interval="1d", progress=False)
+        
+        # Reduzi o período para 100 dias para carregar mais rápido no celular
+        df = yf.download(simbolo, period="100d", interval="1d", progress=False)
         
         if df.empty:
             st.error("Ativo não encontrado.")
@@ -55,11 +49,11 @@ if st.button("Consultar"):
             
             # --- LÓGICA DE STOPS ---
             if any(x in nome_ativo for x in ["BOVA11", "IVVB11", "SMAL11"]):
-                tipo, p_loss, p_gain = "ETF", 3.0, 5.0
+                p_loss, p_gain = 3.0, 5.0
             elif nome_ativo.endswith("34"):
-                tipo, p_loss, p_gain = "BDR", 4.0, 6.0
+                p_loss, p_gain = 4.0, 6.0
             else:
-                tipo, p_loss, p_gain = "Ação", 5.0, 8.0
+                p_loss, p_gain = 5.0, 8.0
 
             # --- INDICADORES ---
             df['EMA69'] = df.ta.ema(length=69)
@@ -74,27 +68,15 @@ if st.button("Consultar"):
             cond_4 = df['Close'] > df['High'].shift(1)
             
             df['Sinal'] = cond_1 & cond_2 & cond_3 & cond_4
-            sinal_hoje = df['Sinal'].iloc[-1]
+            sinal_hoje = bool(df['Sinal'].iloc[-1])
             
             atual = float(df['Close'].iloc[-1])
-            data_entrada_str = "---"
-            preco_entrada = 0.0
             
-            if sinal_hoje:
-                # Achar o primeiro dia do sinal contínuo
-                idx_entrada = len(df) - 1
-                for i in range(len(df)-1, 0, -1):
-                    if df['Sinal'].iloc[i]:
-                        idx_entrada = i
-                    else:
-                        break
-                data_entrada_str = df.index[idx_entrada].strftime('%d/%m/%Y')
-                preco_entrada = float(df['Close'].iloc[idx_entrada])
-
-            # --- EXIBIÇÃO ---
-            st.metric(f"{nome_ativo} ({tipo})", f"R$ {atual:.2f}")
+            # --- EXIBIÇÃO DO VALOR ATUAL ---
+            st.metric(f"Preço Atual {nome_ativo}", f"R$ {atual:.2f}")
             st.write("---")
 
+            # --- CHECKLIST ---
             st.subheader("🔍 Checklist do Setup")
             st.write(f"{'✅' if cond_1.iloc[-1] else '❌'} Indic 1")
             st.write(f"{'✅' if cond_2.iloc[-1] else '❌'} Indic 2")
@@ -104,15 +86,27 @@ if st.button("Consultar"):
             st.write("---")
 
             if sinal_hoje:
-                st.success(f"🚀 COMPRA LIBERADA!")
-                st.write(f"**Data da Entrada:** {data_entrada_str}")
-                st.write(f"**Preço na Entrada:** R$ {preco_entrada:.2f}")
+                # Achar o dia e preço da entrada
+                idx_entrada = len(df) - 1
+                for i in range(len(df)-1, 0, -1):
+                    if df['Sinal'].iloc[i]:
+                        idx_entrada = i
+                    else:
+                        break
                 
-                dif = ((atual / preco_entrada) - 1) * 100
-                if dif > 1:
-                    st.warning(f"⚠️ Ativo já subiu {dif:.2f}% desde a entrada.")
-                elif dif < -1:
-                    st.info(f"📉 Ativo está {abs(dif):.2f}% abaixo do preço de entrada.")
+                dt_entrada = df.index[idx_entrada].strftime('%d/%m/%Y')
+                pr_entrada = float(df['Close'].iloc[idx_entrada])
+                
+                st.success(f"🚀 COMPRA LIBERADA!")
+                st.write(f"**Data da Entrada:** {dt_entrada}")
+                st.write(f"**Preço na Entrada:** R$ {pr_entrada:.2f}")
+                
+                # Comparativo de preço
+                variacao = ((atual / pr_entrada) - 1) * 100
+                if variacao > 0.5:
+                    st.warning(f"⚠️ Já subiu {variacao:.2f}% desde a entrada.")
+                elif variacao < -0.5:
+                    st.info(f"📉 Está {abs(variacao):.2f}% abaixo da entrada.")
             else:
                 st.error("🚫 COMPRA NÃO LIBERADA")
 
@@ -122,22 +116,21 @@ if st.button("Consultar"):
             rr = p_gain / p_loss
 
             st.subheader("🎯 Planejamento")
-            st.write(f"**🛑 Stop Loss ({p_loss}%):** R$ {loss:.2f}")
-            st.write(f"**💰 Alvo Gain ({p_gain}%):** R$ {gain:.2f}")
-            st.write(f"**📊 Risco/Retorno:** {rr:.1f} {'✅' if rr >= 1.5 else '⚠️'}")
+            st.write(f"**🛑 Stop Loss:** R$ {loss:.2f} ({p_loss}%)")
+            st.write(f"**💰 Alvo Gain:** R$ {gain:.2f} ({p_gain}%)")
+            st.write(f"**📊 Risco/Retorno:** {rr:.1f}")
             
             st.write("---")
             
-            # --- GRÁFICO (SEM INTERATIVIDADE PARA NÃO TRAVAR NO CELULAR) ---
-            st.subheader("📊 Gráfico Histórico + Média")
-            grafico_data = pd.DataFrame({
+            # --- GRÁFICO (REMOVI O TOOLTIP PARA NÃO TRAVAR) ---
+            st.subheader("📊 Gráfico + Média")
+            chart_data = pd.DataFrame({
                 "Preço": df['Close'],
                 "Média": df['EMA69']
             })
-            # st.line_chart às vezes trava, então usamos um truque para reduzir o "trava-trava"
-            st.line_chart(grafico_data, use_container_width=True)
+            st.line_chart(chart_data)
             
     except Exception as e:
-        st.error(f"Erro ao carregar dados.")
+        st.error("Erro técnico. Tente outro ativo.")
 
 st.info("Para sair, feche o navegador.")
