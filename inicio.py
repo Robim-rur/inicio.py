@@ -2,31 +2,45 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
+import streamlit.components.v1 as components
 
-# 1. CONFIGURAÇÃO E BLINDAGEM TOTAL (CSS BRUTAMONTES)
+# 1. A ÚLTIMA TRAVA (INJEÇÃO DE ESTILO VIA COMPONENTE)
 st.set_page_config(page_title="B3 VIP", layout="centered")
 
-st.markdown("""
+# Esta função injeta um CSS que tenta "matar" os elementos pai (da moldura do Streamlit)
+components.html(
+    """
     <style>
-    /* 1. Esconde o botão 'Manage app' e 'Deploy' mesmo para o dono */
-    .stAppDeployButton, .stDeployButton, [data-testid="stStatusWidget"] {
+    /* Alvo: O botão de Manage App e o Header do Streamlit */
+    div[data-testid="stStatusWidget"], 
+    .stAppDeployButton, 
+    header, 
+    #MainMenu {
         display: none !important;
         visibility: hidden !important;
+        opacity: 0 !important;
+        height: 0 !important;
+        pointer-events: none !important;
     }
-    
-    /* 2. Esconde o menu de 3 linhas e o cabeçalho */
-    #MainMenu {visibility: hidden !important;}
-    header {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
+    </style>
+    <script>
+    // Tenta esconder os elementos no nível do documento pai
+    parent.document.querySelector('header').style.display = 'none';
+    parent.document.querySelector('.stAppDeployButton').style.display = 'none';
+    parent.document.getElementById('MainMenu').style.visibility = 'hidden';
+    </script>
+    """,
+    height=0,
+)
 
-    /* 3. Remove o espaço branco no topo que sobrava */
-    .block-container {
-        padding-top: 0rem !important;
-        margin-top: -50px !important;
-    }
-    
-    /* 4. Desativa qualquer clique acidental no topo */
-    header {pointer-events: none !important;}
+# Reforço de CSS local
+st.markdown("""
+    <style>
+    [data-testid="stHeader"] {display: none !important;}
+    .stAppDeployButton {display: none !important;}
+    #MainMenu {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
+    .block-container {padding-top: 0rem !important; margin-top: -40px !important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -60,12 +74,8 @@ if st.button("Consultar"):
                 df.columns = df.columns.get_level_values(0)
             
             # --- LÓGICA DE STOPS ---
-            if any(x in nome_ativo for x in ["BOVA11", "IVVB11", "SMAL11"]):
-                p_loss, p_gain = 3.0, 5.0
-            elif nome_ativo.endswith("34"):
-                p_loss, p_gain = 4.0, 6.0
-            else:
-                p_loss, p_gain = 5.0, 8.0
+            p_loss, p_gain = (3.0, 5.0) if any(x in nome_ativo for x in ["BOVA", "IVVB", "SMAL"]) else \
+                             (4.0, 6.0) if nome_ativo.endswith("34") else (5.0, 8.0)
 
             # --- INDICADORES ---
             df['EMA69'] = df.ta.ema(length=69)
@@ -74,12 +84,10 @@ if st.button("Consultar"):
             df = pd.concat([df, stoch, dmi], axis=1)
             
             # --- LÓGICA DE ENTRADA ---
-            cond_1 = df['Close'] > df['EMA69']
-            cond_2 = df['DMP_14'] > df['DMN_14']
-            cond_3 = df['STOCHk_14_3_3'] < 80
-            cond_4 = df['Close'] > df['High'].shift(1)
+            c1, c2, c3 = (df['Close'] > df['EMA69']), (df['DMP_14'] > df['DMN_14']), (df['STOCHk_14_3_3'] < 80)
+            c4 = df['Close'] > df['High'].shift(1)
             
-            df['Sinal'] = cond_1 & cond_2 & cond_3 & cond_4
+            df['Sinal'] = c1 & c2 & c3 & c4
             sinal_hoje = bool(df['Sinal'].iloc[-1])
             atual = float(df['Close'].iloc[-1])
             
@@ -87,54 +95,43 @@ if st.button("Consultar"):
             st.write("---")
 
             st.subheader("🔍 Checklist do Setup")
-            st.write(f"{'✅' if cond_1.iloc[-1] else '❌'} Indic 1")
-            st.write(f"{'✅' if cond_2.iloc[-1] else '❌'} Indic 2")
-            st.write(f"{'✅' if cond_3.iloc[-1] else '❌'} Indic 3")
-            st.write(f"{'✅' if cond_4.iloc[-1] else '❌'} Indic 4")
+            st.write(f"{'✅' if c1.iloc[-1] else '❌'} Indic 1")
+            st.write(f"{'✅' if c2.iloc[-1] else '❌'} Indic 2")
+            st.write(f"{'✅' if c3.iloc[-1] else '❌'} Indic 3")
+            st.write(f"{'✅' if c4.iloc[-1] else '❌'} Indic 4")
             
             st.write("---")
 
             if sinal_hoje:
-                idx_entrada = len(df) - 1
+                # Localizar data e preço de entrada
+                indices_entrada = df[df['Sinal']].index
+                idx_inicio = indices_entrada[-1]
                 for i in range(len(df)-1, 0, -1):
-                    if df['Sinal'].iloc[i]:
-                        idx_entrada = i
-                    else:
-                        break
+                    if df['Sinal'].iloc[i]: idx_inicio = df.index[i]
+                    else: break
                 
-                dt_entrada = df.index[idx_entrada].strftime('%d/%m/%Y')
-                pr_entrada = float(df['Close'].iloc[idx_entrada])
-                
+                pr_ent = float(df.loc[idx_inicio, 'Close'])
                 st.success(f"🚀 COMPRA LIBERADA!")
-                st.write(f"**Data da Entrada:** {dt_entrada}")
-                st.write(f"**Preço na Entrada:** R$ {pr_entrada:.2f}")
+                st.write(f"**Data da Entrada:** {idx_inicio.strftime('%d/%m/%Y')}")
+                st.write(f"**Preço na Entrada:** R$ {pr_ent:.2f}")
                 
-                variacao = ((atual / pr_entrada) - 1) * 100
-                if variacao > 0.5:
-                    st.warning(f"⚠️ Já subiu {variacao:.2f}% desde a entrada.")
-                elif variacao < -0.5:
-                    st.info(f"📉 Está {abs(variacao):.2f}% abaixo da entrada.")
+                var = ((atual / pr_ent) - 1) * 100
+                if var > 0.5: st.warning(f"⚠️ Ativo já subiu {var:.2f}% desde a entrada.")
             else:
                 st.error("🚫 COMPRA NÃO LIBERADA")
 
             # --- PLANEJAMENTO ---
-            loss = atual * (1 - (p_loss/100))
-            gain = atual * (1 + (p_gain/100))
-            rr = p_gain / p_loss
-
             st.subheader("🎯 Planejamento")
-            st.write(f"**🛑 Stop Loss:** R$ {loss:.2f} ({p_loss}%)")
-            st.write(f"**💰 Alvo Gain:** R$ {gain:.2f} ({p_gain}%)")
-            st.write(f"**📊 Risco/Retorno:** {rr:.1f}")
+            st.write(f"**🛑 Stop Loss:** R$ {atual * (1-(p_loss/100)):.2f} ({p_loss}%)")
+            st.write(f"**💰 Alvo Gain:** R$ {atual * (1+(p_gain/100)):.2f} ({p_gain}%)")
+            st.write(f"**📊 Risco/Retorno:** {(p_gain/p_loss):.1f}")
             
             st.write("---")
             
+            # --- GRÁFICO ---
             st.subheader("📊 Gráfico + Média")
-            chart_data = pd.DataFrame({
-                "Preço": df['Close'],
-                "Média": df['EMA69']
-            })
-            st.line_chart(chart_data)
+            # Usando gráfico de área que é mais estável visualmente no mobile
+            st.area_chart(df[['Close', 'EMA69']].rename(columns={'Close':'Preço','EMA69':'Média'}))
             
     except Exception as e:
         st.error("Erro técnico.")
