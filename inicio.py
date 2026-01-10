@@ -2,15 +2,12 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# 1. Configuração da Página e Estilo (Igual ao anterior)
-st.set_page_config(page_title="B3 VIP", layout="centered")
+# 1. Configuração Visual
+st.set_page_config(page_title="B3 VIP - SETUP", layout="centered")
 
 st.markdown("""
     <style>
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
-    .stDeployButton {display:none;}
+    header, footer, .stDeployButton {display: none !important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -19,16 +16,16 @@ if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
-    st.title("🔐 Login B3 VIP")
-    senha = st.text_input("Senha:", type="password")
-    if st.button("Entrar"):
+    st.title("🔐 Área do Assinante B3")
+    senha = st.text_input("Chave de Acesso:", type="password")
+    if st.button("Liberar"):
         if senha == "mestre10":
             st.session_state.auth = True
             st.rerun()
     st.stop()
 
-# 3. Conteúdo Principal
-st.title("📈 Monitor B3")
+# 3. App de Análise de Setup
+st.title("📈 Análise de Setup B3")
 ticker = st.text_input("Ativo (Ex: PETR4):", "PETR4")
 
 if st.button("Consultar"):
@@ -37,44 +34,51 @@ if st.button("Consultar"):
         if not nome_ativo.endswith(".SA"):
             nome_ativo = f"{nome_ativo}.SA"
             
-        with st.spinner('Buscando...'):
-            df = yf.download(nome_ativo, period="1mo")
-            
+        # Busca dados históricos para análise de setup
+        df = yf.download(nome_ativo, period="60d", interval="1d")
+        
         if df.empty:
             st.error("Ativo não encontrado.")
         else:
-            # Extração dos dados técnicos
+            # Dados atuais
             preco_atual = float(df['Close'].iloc[-1])
-            maxima = float(df['High'].iloc[-1])
-            minima = float(df['Low'].iloc[-1])
-            abertura = float(df['Open'].iloc[-1])
+            maxima_hoje = float(df['High'].iloc[-1])
+            minima_hoje = float(df['Low'].iloc[-1])
             
-            # Cálculos de Stop (Padrão 3%)
-            stop_loss = preco_atual * 0.97
-            stop_gain = preco_atual * 1.06
-
-            # Exibição Simples e Direta
+            # --- LÓGICA DO SETUP (Exemplo: Rompimento de Máxima Anterior) ---
+            maxima_anterior = float(df['High'].iloc[-2])
+            data_entrada = df.index[-1].strftime('%d/%m/%Y')
+            
             st.metric("Preço Atual", f"R$ {preco_atual:.2f}")
-            
             st.write("---")
-            st.write(f"**Dados Técnicos do Dia ({ticker}):**")
-            st.write(f"🔺 Máxima: R$ {maxima:.2f}")
-            st.write(f"🔻 Mínima: R$ {minima:.2f}")
-            st.write(f"🏁 Abertura: R$ {abertura:.2f}")
-            
-            st.write("---")
-            st.write("**Sugestão de Stops:**")
-            st.write(f"🛑 Stop Loss: R$ {stop_loss:.2f}")
-            st.write(f"🎯 Stop Gain: R$ {stop_gain:.2f}")
+
+            # VERIFICAÇÃO DE LIBERAÇÃO PARA COMPRA
+            if preco_atual > maxima_anterior:
+                st.success(f"✅ COMPRA LIBERADA!")
+                st.write(f"**Data da Entrada:** {data_entrada}")
+            else:
+                st.warning(f"⏳ AGUARDANDO SETUP (Abaixo da máxima de R$ {maxima_anterior:.2f})")
 
             st.write("---")
-            st.subheader("Variação no Último Mês")
-            # Força o gráfico a usar os dados de fechamento
+            
+            # CÁLCULOS TÉCNICOS DOS STOPS
+            perc_loss = 3.0  # 3% de stop
+            perc_gain = 6.0  # 6% de alvo
+            
+            stop_loss = preco_atual * (1 - (perc_loss/100))
+            stop_gain = preco_atual * (1 + (perc_gain/100))
+
+            st.subheader("🎯 Planejamento da Operação")
+            st.write(f"**🛑 Stop Loss ({perc_loss}%):** R$ {stop_loss:.2f}")
+            st.write(f"**💰 Alvo Gain ({perc_gain}%):** R$ {stop_gain:.2f}")
+            
+            st.write("---")
+            st.write(f"**Dados Técnicos:** Máx: R$ {maxima_hoje:.2f} | Mín: R$ {minima_hoje:.2f}")
+            
+            # Gráfico de Apoio
             st.line_chart(df['Close'])
             
-            st.success("Dados atualizados com sucesso!")
-            
     except Exception as e:
-        st.error(f"Erro ao buscar dados: {e}")
+        st.error(f"Erro ao processar setup: {e}")
 
 st.info("Para sair, basta fechar o navegador.")
