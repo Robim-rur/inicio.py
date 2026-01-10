@@ -40,6 +40,11 @@ if st.button("Consultar"):
         if df.empty:
             st.error("Ativo não encontrado.")
         else:
+            # --- CORREÇÃO PARA O NOVO FORMATO DO YAHOO FINANCE ---
+            # Remove o excesso de nomes nas colunas para evitar o erro "not in index"
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            
             # Dados atuais
             preco_atual = float(df['Close'].iloc[-1])
             maxima_hoje = float(df['High'].iloc[-1])
@@ -75,11 +80,9 @@ if st.button("Consultar"):
             st.write("---")
             st.write(f"**Dados Técnicos:** Máx: R$ {maxima_hoje:.2f} | Mín: R$ {minima_hoje:.2f}")
             
-            # --- RESTAURAÇÃO DO GRÁFICO ---
+            # --- GRÁFICO ---
             st.subheader("📊 Histórico de Preços (60 dias)")
-            # Preparamos os dados para o gráfico não falhar
-            dados_grafico = df[['Close']].copy()
-            st.line_chart(dados_grafico)
+            st.line_chart(df['Close'])
             
             st.success("Análise concluída com sucesso!")
             
