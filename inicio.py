@@ -34,7 +34,7 @@ if st.button("Consultar"):
         if not nome_ativo.endswith(".SA"):
             nome_ativo = f"{nome_ativo}.SA"
             
-        # Busca dados históricos para análise de setup
+        # Busca dados históricos
         df = yf.download(nome_ativo, period="60d", interval="1d")
         
         if df.empty:
@@ -45,7 +45,7 @@ if st.button("Consultar"):
             maxima_hoje = float(df['High'].iloc[-1])
             minima_hoje = float(df['Low'].iloc[-1])
             
-            # --- LÓGICA DO SETUP (Exemplo: Rompimento de Máxima Anterior) ---
+            # Lógica do Setup (Rompimento da Máxima Anterior)
             maxima_anterior = float(df['High'].iloc[-2])
             data_entrada = df.index[-1].strftime('%d/%m/%Y')
             
@@ -62,8 +62,8 @@ if st.button("Consultar"):
             st.write("---")
             
             # CÁLCULOS TÉCNICOS DOS STOPS
-            perc_loss = 3.0  # 3% de stop
-            perc_gain = 6.0  # 6% de alvo
+            perc_loss = 3.0  
+            perc_gain = 6.0  
             
             stop_loss = preco_atual * (1 - (perc_loss/100))
             stop_gain = preco_atual * (1 + (perc_gain/100))
@@ -75,8 +75,13 @@ if st.button("Consultar"):
             st.write("---")
             st.write(f"**Dados Técnicos:** Máx: R$ {maxima_hoje:.2f} | Mín: R$ {minima_hoje:.2f}")
             
-            # Gráfico de Apoio
-            st.line_chart(df['Close'])
+            # --- RESTAURAÇÃO DO GRÁFICO ---
+            st.subheader("📊 Histórico de Preços (60 dias)")
+            # Preparamos os dados para o gráfico não falhar
+            dados_grafico = df[['Close']].copy()
+            st.line_chart(dados_grafico)
+            
+            st.success("Análise concluída com sucesso!")
             
     except Exception as e:
         st.error(f"Erro ao processar setup: {e}")
