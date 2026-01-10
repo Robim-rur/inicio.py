@@ -2,45 +2,23 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
-import streamlit.components.v1 as components
 
-# 1. A ÚLTIMA TRAVA (INJEÇÃO DE ESTILO VIA COMPONENTE)
+# 1. CONFIGURAÇÃO E DESIGN
 st.set_page_config(page_title="B3 VIP", layout="centered")
 
-# Esta função injeta um CSS que tenta "matar" os elementos pai (da moldura do Streamlit)
-components.html(
-    """
-    <style>
-    /* Alvo: O botão de Manage App e o Header do Streamlit */
-    div[data-testid="stStatusWidget"], 
-    .stAppDeployButton, 
-    header, 
-    #MainMenu {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        height: 0 !important;
-        pointer-events: none !important;
-    }
-    </style>
-    <script>
-    // Tenta esconder os elementos no nível do documento pai
-    parent.document.querySelector('header').style.display = 'none';
-    parent.document.querySelector('.stAppDeployButton').style.display = 'none';
-    parent.document.getElementById('MainMenu').style.visibility = 'hidden';
-    </script>
-    """,
-    height=0,
-)
-
-# Reforço de CSS local
 st.markdown("""
     <style>
-    [data-testid="stHeader"] {display: none !important;}
-    .stAppDeployButton {display: none !important;}
+    /* Esconder elementos nativos */
     #MainMenu {visibility: hidden !important;}
+    header {visibility: hidden !important;}
     footer {visibility: hidden !important;}
-    .block-container {padding-top: 0rem !important; margin-top: -40px !important;}
+    .stAppDeployButton {display: none !important;}
+    [data-testid="stStatusWidget"] {display: none !important;}
+    
+    /* Ajuste de espaçamento do topo */
+    .block-container {
+        padding-top: 1rem !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -50,7 +28,7 @@ if "auth" not in st.session_state:
 
 if not st.session_state.auth:
     st.title("🔐 ÁREA DO ASSINANTE B3 VIP")
-    senha = st.text_input("Chave de Acesso:", type="password")
+    senha = st.text_input("Chave de Acesso:", type, "password")
     if st.button("Liberar"):
         if senha == "mestre10":
             st.session_state.auth = True
@@ -65,7 +43,7 @@ if st.button("Consultar"):
     try:
         nome_ativo = ticker.upper().strip()
         simbolo = f"{nome_ativo}.SA" if not nome_ativo.endswith(".SA") else nome_ativo
-        df = yf.download(simbolo, period="100d", interval="1d", progress=False)
+        df = yf.download(simbolo, period="120d", interval="1d", progress=False)
         
         if df.empty:
             st.error("Ativo não encontrado.")
@@ -84,7 +62,9 @@ if st.button("Consultar"):
             df = pd.concat([df, stoch, dmi], axis=1)
             
             # --- LÓGICA DE ENTRADA ---
-            c1, c2, c3 = (df['Close'] > df['EMA69']), (df['DMP_14'] > df['DMN_14']), (df['STOCHk_14_3_3'] < 80)
+            c1 = df['Close'] > df['EMA69']
+            c2 = df['DMP_14'] > df['DMN_14']
+            c3 = df['STOCHk_14_3_3'] < 80
             c4 = df['Close'] > df['High'].shift(1)
             
             df['Sinal'] = c1 & c2 & c3 & c4
@@ -103,20 +83,25 @@ if st.button("Consultar"):
             st.write("---")
 
             if sinal_hoje:
-                # Localizar data e preço de entrada
+                # Encontrar primeiro dia do sinal atual
                 indices_entrada = df[df['Sinal']].index
-                idx_inicio = indices_entrada[-1]
+                idx_entrada = indices_entrada[-1]
                 for i in range(len(df)-1, 0, -1):
-                    if df['Sinal'].iloc[i]: idx_inicio = df.index[i]
-                    else: break
+                    if df['Sinal'].iloc[i]:
+                        idx_entrada = df.index[i]
+                    else:
+                        break
                 
-                pr_ent = float(df.loc[idx_inicio, 'Close'])
+                pr_ent = float(df.loc[idx_entrada, 'Close'])
                 st.success(f"🚀 COMPRA LIBERADA!")
-                st.write(f"**Data da Entrada:** {idx_inicio.strftime('%d/%m/%Y')}")
+                st.write(f"**Data da Entrada:** {idx_entrada.strftime('%d/%m/%Y')}")
                 st.write(f"**Preço na Entrada:** R$ {pr_ent:.2f}")
                 
                 var = ((atual / pr_ent) - 1) * 100
-                if var > 0.5: st.warning(f"⚠️ Ativo já subiu {var:.2f}% desde a entrada.")
+                if var > 0.5:
+                    st.warning(f"⚠️ Já subiu {var:.2f}% desde a entrada.")
+                elif var < -0.5:
+                    st.info(f"📉 Está {abs(var):.2f}% abaixo da entrada.")
             else:
                 st.error("🚫 COMPRA NÃO LIBERADA")
 
@@ -128,12 +113,12 @@ if st.button("Consultar"):
             
             st.write("---")
             
-            # --- GRÁFICO ---
+            # --- GRÁFICO (RESTAURADO) ---
             st.subheader("📊 Gráfico + Média")
-            # Usando gráfico de área que é mais estável visualmente no mobile
-            st.area_chart(df[['Close', 'EMA69']].rename(columns={'Close':'Preço','EMA69':'Média'}))
+            grafico_final = df[['Close', 'EMA69']].rename(columns={'Close': 'Preço Ativo', 'EMA69': 'Média EMA69'})
+            st.line_chart(grafico_final)
             
     except Exception as e:
-        st.error("Erro técnico.")
+        st.error("Erro ao carregar dados.")
 
 st.info("Para sair, feche o navegador.")
