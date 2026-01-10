@@ -2,49 +2,29 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
-import streamlit.components.v1 as components
 
-# 1. CONFIGURAÇÃO DA PÁGINA
+# 1. CONFIGURAÇÃO DA PÁGINA E CSS REFORÇADO
 st.set_page_config(page_title="B3 VIP - SETUP", layout="centered")
 
-# 2. BLOQUEIO "HACKER" DE ÍCONES (TENTATIVA VIA JAVASCRIPT + CSS)
-# Este bloco tenta deletar os botões assim que eles aparecem na tela.
-components.html(
-    """
-    <script>
-    const removeElements = () => {
-        // Remove o botão de Deploy/Manage
-        const deployBtn = window.parent.document.querySelector('.stAppDeployButton');
-        if(deployBtn) deployBtn.remove();
-        
-        // Remove o menu de opções (três linhas)
-        const mainMenu = window.parent.document.getElementById('MainMenu');
-        if(mainMenu) mainMenu.remove();
-
-        // Remove o cabeçalho completo
-        const header = window.parent.document.querySelector('header');
-        if(header) header.style.display = 'none';
-    };
-    
-    // Tenta remover várias vezes para garantir que o Streamlit não recrie
-    setInterval(removeElements, 500);
-    </script>
-    """,
-    height=0,
-)
-
-# Reforço com CSS (O que já usamos, mas mantido para segurança)
 st.markdown("""
     <style>
+    /* Esconder menus e cabeçalhos */
     #MainMenu {visibility: hidden !important;}
     header {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     .stAppDeployButton {display: none !important;}
+    
+    /* Remover interatividade residual e ajustar tela */
     .block-container {padding-top: 0rem !important;}
+    
+    /* Bloqueio de toque no topo para evitar cliques acidentais nos ícones ocultos */
+    .stApp > header {
+        pointer-events: none !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. SISTEMA DE LOGIN - ÁREA DO ASSINANTE B3 VIP
+# 2. LOGIN
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
@@ -57,7 +37,7 @@ if not st.session_state.auth:
             st.rerun()
     st.stop()
 
-# 4. APP DE ANÁLISE
+# 3. APP
 st.title("📈 ANÁLISE DE SETUP B3 VIP")
 ticker = st.text_input("Ativo (Ex: CURY3, BOVA11):", "PETR4")
 
@@ -65,7 +45,6 @@ if st.button("Consultar"):
     try:
         nome_ativo = ticker.upper().strip()
         simbolo = f"{nome_ativo}.SA" if not nome_ativo.endswith(".SA") else nome_ativo
-            
         df = yf.download(simbolo, period="150d", interval="1d", progress=False)
         
         if df.empty:
@@ -82,13 +61,13 @@ if st.button("Consultar"):
             else:
                 tipo, p_loss, p_gain = "Ação", 5.0, 8.0
 
-            # --- CÁLCULO DE INDICADORES ---
+            # --- INDICADORES ---
             df['EMA69'] = df.ta.ema(length=69)
             stoch = df.ta.stoch(k=14, d=3)
             dmi = df.ta.adx(length=14)
             df = pd.concat([df, stoch, dmi], axis=1)
             
-            # --- LÓGICA DO DIA DA ENTRADA ---
+            # --- LÓGICA DE ENTRADA ---
             cond_1 = df['Close'] > df['EMA69']
             cond_2 = df['DMP_14'] > df['DMN_14']
             cond_3 = df['STOCHk_14_3_3'] < 80
@@ -97,19 +76,22 @@ if st.button("Consultar"):
             df['Sinal'] = cond_1 & cond_2 & cond_3 & cond_4
             sinal_hoje = df['Sinal'].iloc[-1]
             
+            atual = float(df['Close'].iloc[-1])
             data_entrada_str = "---"
+            preco_entrada = 0.0
+            
             if sinal_hoje:
-                df_sinais = df[df['Sinal'] == True]
-                data_entrada = df_sinais.index[-1]
+                # Achar o primeiro dia do sinal contínuo
+                idx_entrada = len(df) - 1
                 for i in range(len(df)-1, 0, -1):
                     if df['Sinal'].iloc[i]:
-                        data_entrada = df.index[i]
+                        idx_entrada = i
                     else:
                         break
-                data_entrada_str = data_entrada.strftime('%d/%m/%Y')
+                data_entrada_str = df.index[idx_entrada].strftime('%d/%m/%Y')
+                preco_entrada = float(df['Close'].iloc[idx_entrada])
 
             # --- EXIBIÇÃO ---
-            atual = float(df['Close'].iloc[-1])
             st.metric(f"{nome_ativo} ({tipo})", f"R$ {atual:.2f}")
             st.write("---")
 
@@ -122,7 +104,15 @@ if st.button("Consultar"):
             st.write("---")
 
             if sinal_hoje:
-                st.success(f"🚀 COMPRA LIBERADA! Entrada em: {data_entrada_str}")
+                st.success(f"🚀 COMPRA LIBERADA!")
+                st.write(f"**Data da Entrada:** {data_entrada_str}")
+                st.write(f"**Preço na Entrada:** R$ {preco_entrada:.2f}")
+                
+                dif = ((atual / preco_entrada) - 1) * 100
+                if dif > 1:
+                    st.warning(f"⚠️ Ativo já subiu {dif:.2f}% desde a entrada.")
+                elif dif < -1:
+                    st.info(f"📉 Ativo está {abs(dif):.2f}% abaixo do preço de entrada.")
             else:
                 st.error("🚫 COMPRA NÃO LIBERADA")
 
@@ -138,12 +128,14 @@ if st.button("Consultar"):
             
             st.write("---")
             
+            # --- GRÁFICO (SEM INTERATIVIDADE PARA NÃO TRAVAR NO CELULAR) ---
             st.subheader("📊 Gráfico Histórico + Média")
             grafico_data = pd.DataFrame({
-                f"Preço {nome_ativo}": df['Close'],
+                "Preço": df['Close'],
                 "Média": df['EMA69']
             })
-            st.line_chart(grafico_data)
+            # st.line_chart às vezes trava, então usamos um truque para reduzir o "trava-trava"
+            st.line_chart(grafico_data, use_container_width=True)
             
     except Exception as e:
         st.error(f"Erro ao carregar dados.")
