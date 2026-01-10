@@ -2,24 +2,49 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
+import streamlit.components.v1 as components
 
-# 1. Configuração Visual e BLOQUEIO TOTAL de Menus
+# 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="B3 VIP - SETUP", layout="centered")
 
+# 2. BLOQUEIO "HACKER" DE ÍCONES (TENTATIVA VIA JAVASCRIPT + CSS)
+# Este bloco tenta deletar os botões assim que eles aparecem na tela.
+components.html(
+    """
+    <script>
+    const removeElements = () => {
+        // Remove o botão de Deploy/Manage
+        const deployBtn = window.parent.document.querySelector('.stAppDeployButton');
+        if(deployBtn) deployBtn.remove();
+        
+        // Remove o menu de opções (três linhas)
+        const mainMenu = window.parent.document.getElementById('MainMenu');
+        if(mainMenu) mainMenu.remove();
+
+        // Remove o cabeçalho completo
+        const header = window.parent.document.querySelector('header');
+        if(header) header.style.display = 'none';
+    };
+    
+    // Tenta remover várias vezes para garantir que o Streamlit não recrie
+    setInterval(removeElements, 500);
+    </script>
+    """,
+    height=0,
+)
+
+# Reforço com CSS (O que já usamos, mas mantido para segurança)
 st.markdown("""
     <style>
-    /* Bloqueio de menus e ícones do sistema para aparência profissional */
-    #MainMenu {visibility: hidden;}
+    #MainMenu {visibility: hidden !important;}
     header {visibility: hidden !important;}
-    footer {visibility: hidden;}
-    .stDeployButton {display:none;}
-    [data-testid="stSidebarNav"] {display: none;}
+    footer {visibility: hidden !important;}
     .stAppDeployButton {display: none !important;}
-    .block-container {padding-top: 1rem;}
+    .block-container {padding-top: 0rem !important;}
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Sistema de Login - ÁREA DO ASSINANTE B3 VIP
+# 3. SISTEMA DE LOGIN - ÁREA DO ASSINANTE B3 VIP
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
@@ -32,7 +57,7 @@ if not st.session_state.auth:
             st.rerun()
     st.stop()
 
-# 3. App de Análise
+# 4. APP DE ANÁLISE
 st.title("📈 ANÁLISE DE SETUP B3 VIP")
 ticker = st.text_input("Ativo (Ex: CURY3, BOVA11):", "PETR4")
 
@@ -63,7 +88,7 @@ if st.button("Consultar"):
             dmi = df.ta.adx(length=14)
             df = pd.concat([df, stoch, dmi], axis=1)
             
-            # --- LÓGICA PARA ENCONTRAR O DIA DA ENTRADA ---
+            # --- LÓGICA DO DIA DA ENTRADA ---
             cond_1 = df['Close'] > df['EMA69']
             cond_2 = df['DMP_14'] > df['DMN_14']
             cond_3 = df['STOCHk_14_3_3'] < 80
@@ -74,7 +99,6 @@ if st.button("Consultar"):
             
             data_entrada_str = "---"
             if sinal_hoje:
-                # Busca retroativa para achar o início do sinal atual
                 df_sinais = df[df['Sinal'] == True]
                 data_entrada = df_sinais.index[-1]
                 for i in range(len(df)-1, 0, -1):
