@@ -8,7 +8,6 @@ st.set_page_config(page_title="B3 VIP - SETUP", layout="centered")
 
 st.markdown("""
     <style>
-    /* Bloqueio de menus e ícones do sistema */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden !important;}
     footer {visibility: hidden;}
@@ -41,7 +40,7 @@ if st.button("Consultar"):
         nome_ativo = ticker.upper().strip()
         simbolo = f"{nome_ativo}.SA" if not nome_ativo.endswith(".SA") else nome_ativo
             
-        df = yf.download(simbolo, period="100d", interval="1d", progress=False)
+        df = yf.download(simbolo, period="150d", interval="1d", progress=False)
         
         if df.empty:
             st.error("Ativo não encontrado.")
@@ -57,39 +56,57 @@ if st.button("Consultar"):
             else:
                 tipo, p_loss, p_gain = "Ação", 5.0, 8.0
 
-            # --- INDICADORES (OCULTOS NO NOME) ---
+            # --- CÁLCULO DE INDICADORES ---
             df['EMA69'] = df.ta.ema(length=69)
             stoch = df.ta.stoch(k=14, d=3)
             dmi = df.ta.adx(length=14)
+            df = pd.concat([df, stoch, dmi], axis=1)
             
+            # --- LÓGICA PARA ENCONTRAR O DIA DA ENTRADA ---
+            # Definimos as condições para todo o histórico
+            cond_1 = df['Close'] > df['EMA69']
+            cond_2 = df['DMP_14'] > df['DMN_14']
+            cond_3 = df['STOCHk_14_3_3'] < 80
+            # Condição 4: Preço > Máxima do dia anterior (df['High'].shift(1))
+            cond_4 = df['Close'] > df['High'].shift(1)
+            
+            # O setup é verdadeiro quando as 4 condições batem
+            df['Sinal'] = cond_1 & cond_2 & cond_3 & cond_4
+            
+            # Identificamos o sinal de hoje
+            sinal_hoje = df['Sinal'].iloc[-1]
+            
+            # Se hoje está liberado, vamos descobrir quando começou
+            data_entrada_str = "---"
+            if sinal_hoje:
+                # Pegamos apenas os sinais verdadeiros e pegamos o último bloco contínuo
+                df_sinais = df[df['Sinal'] == True]
+                # A data da entrada é o início desse movimento de alta atual
+                # Para simplificar: pegamos a data mais recente onde o sinal mudou de Falso para Verdadeiro
+                data_entrada = df_sinais.index[-1]
+                # Verificamos se houve sinal nos dias imediatamente anteriores para achar a "origem"
+                for i in range(len(df)-1, 0, -1):
+                    if df['Sinal'].iloc[i]:
+                        data_entrada = df.index[i]
+                    else:
+                        break
+                data_entrada_str = data_entrada.strftime('%d/%m/%Y')
+
+            # --- EXIBIÇÃO ---
             atual = float(df['Close'].iloc[-1])
-            m69 = float(df['EMA69'].iloc[-1])
-            sk = float(stoch['STOCHk_14_3_3'].iloc[-1])
-            dp = float(dmi['DMP_14'].iloc[-1])
-            dm = float(dmi['DMN_14'].iloc[-1])
-            max_ant = float(df['High'].iloc[-2])
-            
             st.metric(f"{nome_ativo} ({tipo})", f"R$ {atual:.2f}")
             st.write("---")
 
-            # --- CHECKLIST DISCRETO ---
             st.subheader("🔍 Checklist do Setup")
-            
-            c1 = atual > m69
-            c2 = dp > dm
-            c3 = sk < 80 
-            c4 = atual > max_ant
-            
-            # Substituição dos nomes por Indic 1, 2, 3 e 4
-            st.write(f"{'✅' if c1 else '❌'} Indic 1")
-            st.write(f"{'✅' if c2 else '❌'} Indic 2")
-            st.write(f"{'✅' if c3 else '❌'} Indic 3")
-            st.write(f"{'✅' if c4 else '❌'} Indic 4")
+            st.write(f"{'✅' if cond_1.iloc[-1] else '❌'} Indic 1")
+            st.write(f"{'✅' if cond_2.iloc[-1] else '❌'} Indic 2")
+            st.write(f"{'✅' if cond_3.iloc[-1] else '❌'} Indic 3")
+            st.write(f"{'✅' if cond_4.iloc[-1] else '❌'} Indic 4")
             
             st.write("---")
 
-            if all([c1, c2, c4]):
-                st.success("🚀 COMPRA LIBERADA!")
+            if sinal_hoje:
+                st.success(f"🚀 COMPRA LIBERADA! Entrada em: {data_entrada_str}")
             else:
                 st.error("🚫 COMPRA NÃO LIBERADA")
 
@@ -105,7 +122,6 @@ if st.button("Consultar"):
             
             st.write("---")
             
-            # --- GRÁFICO ---
             st.subheader("📊 Gráfico Histórico + Média")
             grafico_data = pd.DataFrame({
                 f"Preço {nome_ativo}": df['Close'],
@@ -114,6 +130,6 @@ if st.button("Consultar"):
             st.line_chart(grafico_data)
             
     except Exception as e:
-        st.error("Erro ao carregar dados.")
+        st.error(f"Erro ao carregar dados.")
 
 st.info("Para sair, feche o navegador.")
