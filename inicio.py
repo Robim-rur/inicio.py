@@ -3,15 +3,19 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 
-# 1. Configuração e Limpeza de Cache para evitar travamentos
+# 1. Configuração Visual e BLOQUEIO TOTAL de Menus
 st.set_page_config(page_title="B3 VIP - SETUP", layout="centered")
-
-# Isso força o app a não "acumular" lixo de pesquisas anteriores
-st.cache_data.clear()
 
 st.markdown("""
     <style>
-    header, footer, .stDeployButton {display: none !important;}
+    /* Bloqueio de menus e ícones do sistema */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden !important;}
+    footer {visibility: hidden;}
+    .stDeployButton {display:none;}
+    [data-testid="stSidebarNav"] {display: none;}
+    .stAppDeployButton {display: none !important;}
+    .block-container {padding-top: 1rem;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -28,16 +32,15 @@ if not st.session_state.auth:
             st.rerun()
     st.stop()
 
-# 3. Painel Principal
+# 3. App de Análise
 st.title("📈 Análise de Setup B3")
-ticker = st.text_input("Ativo (ex: CURY3, BOVA11):", "PETR4")
+ticker = st.text_input("Ativo (Ex: CURY3, BOVA11):", "PETR4")
 
 if st.button("Consultar"):
     try:
         nome_ativo = ticker.upper().strip()
         simbolo = f"{nome_ativo}.SA" if not nome_ativo.endswith(".SA") else nome_ativo
             
-        # Busca apenas os dados estritamente necessários (100 dias)
         df = yf.download(simbolo, period="100d", interval="1d", progress=False)
         
         if df.empty:
@@ -46,7 +49,7 @@ if st.button("Consultar"):
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             
-            # --- IDENTIFICAÇÃO (MANUAL DO USUÁRIO) ---
+            # --- LÓGICA DE STOPS ---
             if any(x in nome_ativo for x in ["BOVA11", "IVVB11", "SMAL11"]):
                 tipo, p_loss, p_gain = "ETF", 3.0, 5.0
             elif nome_ativo.endswith("34"):
@@ -54,12 +57,11 @@ if st.button("Consultar"):
             else:
                 tipo, p_loss, p_gain = "Ação", 5.0, 8.0
 
-            # --- CÁLCULOS TÉCNICOS ---
+            # --- INDICADORES (OCULTOS NO NOME) ---
             df['EMA69'] = df.ta.ema(length=69)
             stoch = df.ta.stoch(k=14, d=3)
             dmi = df.ta.adx(length=14)
             
-            # Valores para o Checklist
             atual = float(df['Close'].iloc[-1])
             m69 = float(df['EMA69'].iloc[-1])
             sk = float(stoch['STOCHk_14_3_3'].iloc[-1])
@@ -70,17 +72,19 @@ if st.button("Consultar"):
             st.metric(f"{nome_ativo} ({tipo})", f"R$ {atual:.2f}")
             st.write("---")
 
-            # --- CHECKLIST ---
+            # --- CHECKLIST DISCRETO ---
             st.subheader("🔍 Checklist do Setup")
+            
             c1 = atual > m69
             c2 = dp > dm
             c3 = sk < 80 
             c4 = atual > max_ant
             
-            st.write(f"{'✅' if c1 else '❌'} Preço > EMA 69 (R$ {m69:.2f})")
-            st.write(f"{'✅' if c2 else '❌'} DMI: DI+ > DI-")
-            st.write(f"{'✅' if c3 else '❌'} Estocástico OK ({sk:.1f})")
-            st.write(f"{'✅' if c4 else '❌'} Rompimento Máxima Anterior (R$ {max_ant:.2f})")
+            # Substituição dos nomes por Indic 1, 2, 3 e 4
+            st.write(f"{'✅' if c1 else '❌'} Indic 1")
+            st.write(f"{'✅' if c2 else '❌'} Indic 2")
+            st.write(f"{'✅' if c3 else '❌'} Indic 3")
+            st.write(f"{'✅' if c4 else '❌'} Indic 4")
             
             st.write("---")
 
@@ -89,7 +93,7 @@ if st.button("Consultar"):
             else:
                 st.error("🚫 COMPRA NÃO LIBERADA")
 
-            # --- STOPS ---
+            # --- PLANEJAMENTO ---
             loss = atual * (1 - (p_loss/100))
             gain = atual * (1 + (p_gain/100))
             rr = p_gain / p_loss
@@ -101,15 +105,15 @@ if st.button("Consultar"):
             
             st.write("---")
             
-            # --- GRÁFICO COM LEGENDA ---
-            st.subheader("📊 Gráfico e EMA 69")
+            # --- GRÁFICO ---
+            st.subheader("📊 Gráfico Histórico + Média")
             grafico_data = pd.DataFrame({
                 f"Preço {nome_ativo}": df['Close'],
-                "Média EMA 69": df['EMA69']
+                "Média": df['EMA69']
             })
             st.line_chart(grafico_data)
             
     except Exception as e:
-        st.error("Erro na conexão. Tente novamente em instantes.")
+        st.error("Erro ao carregar dados.")
 
-st.info("Para sair, fechar o navegador.")
+st.info("Para sair, feche o navegador.")
