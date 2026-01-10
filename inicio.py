@@ -19,7 +19,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Sistema de Login - AJUSTADO PARA MAIÚSCULAS
+# 2. Sistema de Login - ÁREA DO ASSINANTE B3 VIP
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
@@ -110,4 +110,18 @@ if st.button("Consultar"):
             st.subheader("🎯 Planejamento")
             st.write(f"**🛑 Stop Loss ({p_loss}%):** R$ {loss:.2f}")
             st.write(f"**💰 Alvo Gain ({p_gain}%):** R$ {gain:.2f}")
-            st.write(f"**📊 Risco/Retorno:** {rr:.1f
+            st.write(f"**📊 Risco/Retorno:** {rr:.1f} {'✅' if rr >= 1.5 else '⚠️'}")
+            
+            st.write("---")
+            
+            st.subheader("📊 Gráfico Histórico + Média")
+            grafico_data = pd.DataFrame({
+                f"Preço {nome_ativo}": df['Close'],
+                "Média": df['EMA69']
+            })
+            st.line_chart(grafico_data)
+            
+    except Exception as e:
+        st.error(f"Erro ao carregar dados.")
+
+st.info("Para sair, feche o navegador.")
