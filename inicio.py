@@ -3,16 +3,30 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 
-# 1. CONFIGURAÇÃO DA PÁGINA (SIMPLIFICADA PARA EVITAR TRAVAMENTOS)
+# 1. CONFIGURAÇÃO E BLINDAGEM TOTAL (CSS BRUTAMONTES)
 st.set_page_config(page_title="B3 VIP", layout="centered")
 
-# CSS MÍNIMO: Apenas o essencial para não bugar o processamento
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stAppDeployButton {display: none !important;}
+    /* 1. Esconde o botão 'Manage app' e 'Deploy' mesmo para o dono */
+    .stAppDeployButton, .stDeployButton, [data-testid="stStatusWidget"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* 2. Esconde o menu de 3 linhas e o cabeçalho */
+    #MainMenu {visibility: hidden !important;}
+    header {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
+
+    /* 3. Remove o espaço branco no topo que sobrava */
+    .block-container {
+        padding-top: 0rem !important;
+        margin-top: -50px !important;
+    }
+    
+    /* 4. Desativa qualquer clique acidental no topo */
+    header {pointer-events: none !important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -37,8 +51,6 @@ if st.button("Consultar"):
     try:
         nome_ativo = ticker.upper().strip()
         simbolo = f"{nome_ativo}.SA" if not nome_ativo.endswith(".SA") else nome_ativo
-        
-        # Reduzi o período para 100 dias para carregar mais rápido no celular
         df = yf.download(simbolo, period="100d", interval="1d", progress=False)
         
         if df.empty:
@@ -69,14 +81,11 @@ if st.button("Consultar"):
             
             df['Sinal'] = cond_1 & cond_2 & cond_3 & cond_4
             sinal_hoje = bool(df['Sinal'].iloc[-1])
-            
             atual = float(df['Close'].iloc[-1])
             
-            # --- EXIBIÇÃO DO VALOR ATUAL ---
             st.metric(f"Preço Atual {nome_ativo}", f"R$ {atual:.2f}")
             st.write("---")
 
-            # --- CHECKLIST ---
             st.subheader("🔍 Checklist do Setup")
             st.write(f"{'✅' if cond_1.iloc[-1] else '❌'} Indic 1")
             st.write(f"{'✅' if cond_2.iloc[-1] else '❌'} Indic 2")
@@ -86,7 +95,6 @@ if st.button("Consultar"):
             st.write("---")
 
             if sinal_hoje:
-                # Achar o dia e preço da entrada
                 idx_entrada = len(df) - 1
                 for i in range(len(df)-1, 0, -1):
                     if df['Sinal'].iloc[i]:
@@ -101,7 +109,6 @@ if st.button("Consultar"):
                 st.write(f"**Data da Entrada:** {dt_entrada}")
                 st.write(f"**Preço na Entrada:** R$ {pr_entrada:.2f}")
                 
-                # Comparativo de preço
                 variacao = ((atual / pr_entrada) - 1) * 100
                 if variacao > 0.5:
                     st.warning(f"⚠️ Já subiu {variacao:.2f}% desde a entrada.")
@@ -122,7 +129,6 @@ if st.button("Consultar"):
             
             st.write("---")
             
-            # --- GRÁFICO (REMOVI O TOOLTIP PARA NÃO TRAVAR) ---
             st.subheader("📊 Gráfico + Média")
             chart_data = pd.DataFrame({
                 "Preço": df['Close'],
@@ -131,6 +137,6 @@ if st.button("Consultar"):
             st.line_chart(chart_data)
             
     except Exception as e:
-        st.error("Erro técnico. Tente outro ativo.")
+        st.error("Erro técnico.")
 
 st.info("Para sair, feche o navegador.")
