@@ -40,8 +40,7 @@ if st.button("Consultar"):
         if df.empty:
             st.error("Ativo não encontrado.")
         else:
-            # --- CORREÇÃO PARA O NOVO FORMATO DO YAHOO FINANCE ---
-            # Remove o excesso de nomes nas colunas para evitar o erro "not in index"
+            # Limpeza de colunas do Yahoo Finance
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             
@@ -49,42 +48,52 @@ if st.button("Consultar"):
             preco_atual = float(df['Close'].iloc[-1])
             maxima_hoje = float(df['High'].iloc[-1])
             minima_hoje = float(df['Low'].iloc[-1])
+            fechamento_anterior = float(df['Close'].iloc[-2])
             
-            # Lógica do Setup (Rompimento da Máxima Anterior)
+            # Lógica do Setup (Baseada na máxima anterior)
             maxima_anterior = float(df['High'].iloc[-2])
             data_entrada = df.index[-1].strftime('%d/%m/%Y')
             
             st.metric("Preço Atual", f"R$ {preco_atual:.2f}")
             st.write("---")
 
-            # VERIFICAÇÃO DE LIBERAÇÃO PARA COMPRA
+            # --- ANÁLISE TÉCNICA DO SETUP ---
+            st.subheader("🔍 Análise Técnica")
+            
             if preco_atual > maxima_anterior:
-                st.success(f"✅ COMPRA LIBERADA!")
-                st.write(f"**Data da Entrada:** {data_entrada}")
+                st.success(f"✅ **SINAL DE COMPRA ATIVADO**")
+                st.write(f"O preço rompeu a máxima anterior de R$ {maxima_anterior:.2f}.")
+                st.write(f"**Data do Sinal:** {data_entrada}")
             else:
-                st.warning(f"⏳ AGUARDANDO SETUP (Abaixo da máxima de R$ {maxima_anterior:.2f})")
+                st.warning(f"⏳ **AGUARDANDO ROMPIMENTO**")
+                st.write(f"O ativo precisa superar R$ {maxima_anterior:.2f} para liberar compra.")
+
+            # Análise de Tendência Curta
+            if preco_atual > fechamento_anterior:
+                st.info("📈 **Tendência:** Alta no curto prazo (Preço acima do fechamento anterior).")
+            else:
+                st.error("📉 **Tendência:** Baixa no curto prazo (Preço abaixo do fechamento anterior).")
 
             st.write("---")
             
-            # CÁLCULOS TÉCNICOS DOS STOPS
+            # --- STOPS E PORCENTAGENS ---
             perc_loss = 3.0  
             perc_gain = 6.0  
-            
             stop_loss = preco_atual * (1 - (perc_loss/100))
             stop_gain = preco_atual * (1 + (perc_gain/100))
 
-            st.subheader("🎯 Planejamento da Operação")
             st.write(f"**🛑 Stop Loss ({perc_loss}%):** R$ {stop_loss:.2f}")
             st.write(f"**💰 Alvo Gain ({perc_gain}%):** R$ {stop_gain:.2f}")
             
             st.write("---")
-            st.write(f"**Dados Técnicos:** Máx: R$ {maxima_hoje:.2f} | Mín: R$ {minima_hoje:.2f}")
             
-            # --- GRÁFICO ---
-            st.subheader("📊 Histórico de Preços (60 dias)")
+            # --- GRÁFICO E DADOS TÉCNICOS ---
+            st.subheader("📊 Gráfico Histórico")
             st.line_chart(df['Close'])
             
-            st.success("Análise concluída com sucesso!")
+            st.write(f"**Resumo Técnico:** Máxima: R$ {maxima_hoje:.2f} | Mínima: R$ {minima_hoje:.2f}")
+            
+            st.success("Análise processada com sucesso!")
             
     except Exception as e:
         st.error(f"Erro ao processar setup: {e}")
