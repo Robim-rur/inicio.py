@@ -3,32 +3,48 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 
-# 1. CONFIGURAÇÃO E DESIGN
+# 1. REFORÇO NA BLINDAGEM (SÓ ALTERAÇÃO DE DESIGN)
 st.set_page_config(page_title="B3 VIP", layout="centered")
 
 st.markdown("""
     <style>
-    /* Esconder elementos nativos */
+    /* Esconde o botão 'Manage app' e 'Deploy' de forma agressiva */
+    .stAppDeployButton, 
+    .stDeployButton, 
+    [data-testid="stStatusWidget"],
+    [data-testid="stHeader"] {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        width: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    /* Remove o Menu de 3 linhas e o Rodapé */
     #MainMenu {visibility: hidden !important;}
-    header {visibility: hidden !important;}
     footer {visibility: hidden !important;}
-    .stAppDeployButton {display: none !important;}
-    [data-testid="stStatusWidget"] {display: none !important;}
     
-    /* Ajuste de espaçamento do topo */
+    /* Remove a moldura do cabeçalho que o Streamlit insiste em manter */
+    header {
+        display: none !important;
+        height: 0px !important;
+    }
+
+    /* Ajuste para o conteúdo subir e ocupar o lugar do cabeçalho removido */
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 0rem !important;
+        margin-top: -50px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. LOGIN (CORRIGIDO)
+# 2. LOGIN (MANTIDO EXATAMENTE COMO ESTÁ)
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
     st.title("🔐 ÁREA DO ASSINANTE B3 VIP")
-    # Removido o erro de sintaxe da linha abaixo
     senha = st.text_input("Chave de Acesso:", type="password")
     if st.button("Liberar"):
         if senha == "mestre10":
@@ -36,7 +52,7 @@ if not st.session_state.auth:
             st.rerun()
     st.stop()
 
-# 3. APP PRINCIPAL
+# 3. APP PRINCIPAL (LÓGICA PRESERVADA)
 st.title("📈 ANÁLISE DE SETUP B3 VIP")
 ticker = st.text_input("Ativo (Ex: PETR4, VALE3):", "PETR4")
 
@@ -45,7 +61,6 @@ if st.button("Consultar"):
         nome_ativo = ticker.upper().strip()
         simbolo = f"{nome_ativo}.SA" if not nome_ativo.endswith(".SA") else nome_ativo
         
-        # Download dos dados
         df = yf.download(simbolo, period="120d", interval="1d", progress=False)
         
         if df.empty:
@@ -54,17 +69,14 @@ if st.button("Consultar"):
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             
-            # --- LÓGICA DE STOPS ---
             p_loss, p_gain = (3.0, 5.0) if any(x in nome_ativo for x in ["BOVA", "IVVB", "SMAL"]) else \
                              (4.0, 6.0) if nome_ativo.endswith("34") else (5.0, 8.0)
 
-            # --- INDICADORES ---
             df['EMA69'] = df.ta.ema(length=69)
             stoch = df.ta.stoch(k=14, d=3)
             dmi = df.ta.adx(length=14)
             df = pd.concat([df, stoch, dmi], axis=1)
             
-            # --- LÓGICA DE ENTRADA ---
             c1 = df['Close'] > df['EMA69']
             c2 = df['DMP_14'] > df['DMN_14']
             c3 = df['STOCHk_14_3_3'] < 80
@@ -86,7 +98,6 @@ if st.button("Consultar"):
             st.write("---")
 
             if sinal_hoje:
-                # Localizar data e preço da primeira entrada deste ciclo
                 idx_entrada = len(df) - 1
                 for i in range(len(df)-1, 0, -1):
                     if df['Sinal'].iloc[i]:
@@ -109,7 +120,6 @@ if st.button("Consultar"):
             else:
                 st.error("🚫 COMPRA NÃO LIBERADA")
 
-            # --- PLANEJAMENTO ---
             st.subheader("🎯 Planejamento")
             st.write(f"**🛑 Stop Loss:** R$ {atual * (1-(p_loss/100)):.2f} ({p_loss}%)")
             st.write(f"**💰 Alvo Gain:** R$ {atual * (1+(p_gain/100)):.2f} ({p_gain}%)")
@@ -117,14 +127,12 @@ if st.button("Consultar"):
             
             st.write("---")
             
-            # --- GRÁFICO ---
             st.subheader("📊 Gráfico + Média")
-            # Preparando os dados para o gráfico com legendas claras
             df_plot = df[['Close', 'EMA69']].copy()
             df_plot.columns = ['Preço de Fechamento', 'Média EMA 69']
             st.line_chart(df_plot)
             
     except Exception as e:
-        st.error(f"Erro ao processar ativo. Verifique o ticker.")
+        st.error(f"Erro ao processar ativo.")
 
 st.info("Para sair, feche o navegador.")
